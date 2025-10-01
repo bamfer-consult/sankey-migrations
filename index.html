@@ -1,0 +1,267 @@
+import React, { useState } from 'react';
+import * as Plotly from 'plotly';
+
+const DataCenterCloudSankey = () => {
+  const [metric, setMetric] = useState('workloads');
+  
+  // Define the data for different metrics
+  const metricsData = {
+    workloads: {
+      title: 'Workload Count',
+      // Distribution from 11 DCs to 2 Cloud Orgs
+      flows: [
+        // DC-NY to Cloud Orgs
+        450, 200,
+        // DC-SF to Cloud Orgs
+        380, 150,
+        // DC-CHI to Cloud Orgs
+        320, 180,
+        // DC-DAL to Cloud Orgs
+        290, 160,
+        // DC-ATL to Cloud Orgs
+        350, 140,
+        // DC-SEA to Cloud Orgs
+        280, 120,
+        // DC-BOS to Cloud Orgs
+        240, 110,
+        // DC-DEN to Cloud Orgs
+        200, 90,
+        // DC-MIA to Cloud Orgs
+        220, 100,
+        // DC-PHX to Cloud Orgs
+        190, 85,
+        // DC-PDX to Cloud Orgs
+        170, 80
+      ]
+    },
+    storage: {
+      title: 'Storage (TB)',
+      flows: [
+        850, 420,
+        720, 380,
+        650, 340,
+        580, 310,
+        690, 290,
+        540, 260,
+        480, 230,
+        410, 190,
+        450, 210,
+        390, 180,
+        350, 170
+      ]
+    },
+    cost: {
+      title: 'Migration Cost ($K)',
+      flows: [
+        1200, 580,
+        980, 520,
+        890, 460,
+        820, 440,
+        950, 410,
+        740, 380,
+        660, 320,
+        580, 280,
+        620, 300,
+        550, 270,
+        490, 250
+      ]
+    }
+  };
+
+  const generateSankey = () => {
+    const data = metricsData[metric];
+    
+    // Node definitions
+    const nodes = [
+      // Source nodes (Data Centers) - indices 0-10
+      'DC-NY-01',
+      'DC-SF-02',
+      'DC-CHI-03',
+      'DC-DAL-04',
+      'DC-ATL-05',
+      'DC-SEA-06',
+      'DC-BOS-07',
+      'DC-DEN-08',
+      'DC-MIA-09',
+      'DC-PHX-10',
+      'DC-PDX-11',
+      // Target nodes (Cloud Organizations) - indices 11-12
+      'Cloud Org A\n(Production)',
+      'Cloud Org B\n(Non-Production)'
+    ];
+
+    // Create source, target, and value arrays
+    const source = [];
+    const target = [];
+    const value = [];
+    
+    // Map each DC (0-10) to both Cloud Orgs (11, 12)
+    for (let dc = 0; dc < 11; dc++) {
+      // To Cloud Org A (Production)
+      source.push(dc);
+      target.push(11);
+      value.push(data.flows[dc * 2]);
+      
+      // To Cloud Org B (Non-Production)
+      source.push(dc);
+      target.push(12);
+      value.push(data.flows[dc * 2 + 1]);
+    }
+
+    // Color scheme
+    const nodeColors = [
+      // Data centers - shades of blue
+      '#1e3a8a', '#1e40af', '#1d4ed8', '#2563eb', '#3b82f6',
+      '#60a5fa', '#93c5fd', '#1e3a8a', '#1e40af', '#1d4ed8', '#2563eb',
+      // Cloud orgs - shades of green
+      '#15803d', '#ca8a04'
+    ];
+
+    const linkColors = source.map((s) => {
+      const dcColor = nodeColors[s];
+      return dcColor + '40'; // Add transparency
+    });
+
+    return {
+      type: 'sankey',
+      orientation: 'h',
+      node: {
+        pad: 20,
+        thickness: 25,
+        line: {
+          color: 'white',
+          width: 2
+        },
+        label: nodes,
+        color: nodeColors,
+        customdata: nodes.map((node, i) => {
+          if (i < 11) return 'Data Center';
+          return 'Cloud Organization';
+        }),
+        hovertemplate: '<b>%{label}</b><br>Type: %{customdata}<br>Total: %{value}<extra></extra>'
+      },
+      link: {
+        source: source,
+        target: target,
+        value: value,
+        color: linkColors,
+        hovertemplate: '%{source.label} → %{target.label}<br>%{value:,} ' + 
+          (metric === 'workloads' ? 'workloads' : 
+           metric === 'storage' ? 'TB' : '$K') + '<extra></extra>'
+      }
+    };
+  };
+
+  React.useEffect(() => {
+    const plotData = [generateSankey()];
+    const layout = {
+      title: {
+        text: `Enterprise Data Center to Cloud Migration<br><sub>Metric: ${metricsData[metric].title}</sub>`,
+        font: { size: 20, color: '#1f2937' }
+      },
+      font: { size: 12, family: 'system-ui, sans-serif' },
+      plot_bgcolor: '#f9fafb',
+      paper_bgcolor: '#ffffff',
+      margin: { l: 20, r: 20, t: 80, b: 40 },
+      height: 700
+    };
+
+    const config = {
+      responsive: true,
+      displayModeBar: true,
+      displaylogo: false,
+      modeBarButtonsToRemove: ['lasso2d', 'select2d']
+    };
+
+    Plotly.newPlot('sankey-plot', plotData, layout, config);
+  }, [metric]);
+
+  // Calculate totals for summary
+  const totalValue = metricsData[metric].flows.reduce((a, b) => a + b, 0);
+  const orgATotal = metricsData[metric].flows.filter((_, i) => i % 2 === 0).reduce((a, b) => a + b, 0);
+  const orgBTotal = metricsData[metric].flows.filter((_, i) => i % 2 === 1).reduce((a, b) => a + b, 0);
+
+  return (
+    <div className="w-full h-full bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Controls */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Migration Metric
+              </label>
+              <select
+                value={metric}
+                onChange={(e) => setMetric(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="workloads">Workload Count</option>
+                <option value="storage">Storage Capacity (TB)</option>
+                <option value="cost">Migration Cost ($K)</option>
+              </select>
+            </div>
+            
+            {/* Summary Stats */}
+            <div className="flex gap-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">11</div>
+                <div className="text-xs text-gray-600">Data Centers</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">2</div>
+                <div className="text-xs text-gray-600">Cloud Orgs</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">
+                  {totalValue.toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-600">Total {metricsData[metric].title}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sankey Diagram */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div id="sankey-plot"></div>
+        </div>
+
+        {/* Distribution Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          <div className="bg-green-50 border-l-4 border-green-600 p-4 rounded">
+            <div className="font-semibold text-green-900">Cloud Org A (Production)</div>
+            <div className="text-2xl font-bold text-green-700 mt-1">
+              {orgATotal.toLocaleString()}
+            </div>
+            <div className="text-sm text-green-600 mt-1">
+              {((orgATotal / totalValue) * 100).toFixed(1)}% of total migration
+            </div>
+          </div>
+          <div className="bg-yellow-50 border-l-4 border-yellow-600 p-4 rounded">
+            <div className="font-semibold text-yellow-900">Cloud Org B (Non-Production)</div>
+            <div className="text-2xl font-bold text-yellow-700 mt-1">
+              {orgBTotal.toLocaleString()}
+            </div>
+            <div className="text-sm text-yellow-600 mt-1">
+              {((orgBTotal / totalValue) * 100).toFixed(1)}% of total migration
+            </div>
+          </div>
+        </div>
+
+        {/* Key Insights */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+          <h3 className="font-semibold text-blue-900 mb-2">Key Insights</h3>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• <strong>Flow Width:</strong> Represents the volume of migration from each data center</li>
+            <li>• <strong>Major Paths:</strong> Thicker flows indicate higher-priority or larger-scale migrations</li>
+            <li>• <strong>Distribution:</strong> Production workloads (Org A) typically receive ~70% of resources</li>
+            <li>• <strong>Planning:</strong> Hover over flows to see specific values for capacity planning</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DataCenterCloudSankey;
